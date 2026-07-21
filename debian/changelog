@@ -1,3 +1,17 @@
+adsb-history-logger (0.3.1-1) unstable; urgency=medium
+
+  * Fix history tracks not rendering at all (regression in 0.3.0). The
+    direction-arrow code used ol.geom.Polygon, which tar1090's custom/
+    trimmed OpenLayers bundle apparently doesn't expose (unlike
+    LineString/Point, confirmed used directly by tar1090's own code) --
+    the resulting exception was thrown before OLMap.addLayer() ran,
+    silently dropping the already-built line segments too. Arrows now
+    use LineString-only chevrons, and arrow failures are caught locally
+    so they can no longer take the line rendering down with them.
+    Errors are also now logged to the console instead of swallowed.
+
+ -- enbay1 <enbay1@gmail.com>  Tue, 21 Jul 2026 15:10:00 +0000
+
 adsb-history-logger (0.3.0-1) unstable; urgency=medium
 
   * History tracks are now directional (arrow markers along the path,

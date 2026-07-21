@@ -75,19 +75,22 @@
         return Math.atan2(y, x);
     }
 
-    // A small filled triangle (in projected map units) pointing along `bearingRad`.
-    function arrowPolygon(centerProjected, bearingRad, sizeMeters) {
-        var pts = [[0, 1], [-0.6, -0.5], [0.6, -0.5]];
+    // A small open chevron (left arm -> tip -> right arm), in projected map
+    // units, pointing along `bearingRad`. Built from LineString rather than
+    // Polygon deliberately: LineString is confirmed used directly by
+    // tar1090's own code against this bundle, Polygon isn't, and this
+    // bundle is a trimmed custom build that may not include it.
+    function arrowLineString(centerProjected, bearingRad, sizeMeters) {
+        var pts = [[-0.5, -0.4], [0, 0.6], [0.5, -0.4]];
         var cos = Math.cos(bearingRad), sin = Math.sin(bearingRad);
-        var ring = pts.map(function (p) {
+        var points = pts.map(function (p) {
             var x = p[0] * sizeMeters, y = p[1] * sizeMeters;
             return [
                 centerProjected[0] + (x * cos + y * sin),
                 centerProjected[1] + (-x * sin + y * cos),
             ];
         });
-        ring.push(ring[0]);
-        return new ol.geom.Polygon([ring]);
+        return new ol.geom.LineString(points);
     }
 
     function renderTrack(geojson) {
@@ -109,21 +112,25 @@
             features.push(line);
         });
 
-        var arrowEvery = Math.max(1, Math.ceil(segments.length / 15));
-        for (var i = 0; i < segments.length; i += arrowEvery) {
-            var seg = segments[i];
-            var coords = seg.geometry.coordinates;
-            var brng = bearing(coords[0][0], coords[0][1], coords[1][0], coords[1][1]);
-            var mid = [(coords[0][0] + coords[1][0]) / 2, (coords[0][1] + coords[1][1]) / 2];
-            var color = altitudeColor(seg.properties.altitude, seg.properties.on_ground);
-            var arrow = new ol.Feature({
-                geometry: arrowPolygon(ol.proj.fromLonLat(mid), brng, 250),
-            });
-            arrow.setStyle(new ol.style.Style({
-                fill: new ol.style.Fill({ color: color }),
-                stroke: new ol.style.Stroke({ color: "rgba(0, 0, 0, 0.6)", width: 1 }),
-            }));
-            features.push(arrow);
+        // Arrow failures must never take the line segments down with them.
+        try {
+            var arrowEvery = Math.max(1, Math.ceil(segments.length / 15));
+            for (var i = 0; i < segments.length; i += arrowEvery) {
+                var seg = segments[i];
+                var coords = seg.geometry.coordinates;
+                var brng = bearing(coords[0][0], coords[0][1], coords[1][0], coords[1][1]);
+                var mid = [(coords[0][0] + coords[1][0]) / 2, (coords[0][1] + coords[1][1]) / 2];
+                var color = altitudeColor(seg.properties.altitude, seg.properties.on_ground);
+                var arrow = new ol.Feature({
+                    geometry: arrowLineString(ol.proj.fromLonLat(mid), brng, 250),
+                });
+                arrow.setStyle(new ol.style.Style({
+                    stroke: new ol.style.Stroke({ color: color, width: 2 }),
+                }));
+                features.push(arrow);
+            }
+        } catch (e) {
+            console.error("adsb-history-logger: direction arrows failed, showing line only", e);
         }
 
         trackLayer = new ol.layer.Vector({
@@ -144,9 +151,8 @@
                 return resp.json();
             })
             .then(renderTrack)
-            .catch(function () {
-                // history panel already reports errors; a failed track draw
-                // just means no overlay appears.
+            .catch(function (e) {
+                console.error("adsb-history-logger: failed to draw track", e);
             });
     }
 
@@ -196,7 +202,8 @@
             .then(function (data) {
                 renderVisits(icao, data.visits);
             })
-            .catch(function () {
+            .catch(function (e) {
+                console.error("adsb-history-logger: failed to load history", e);
                 el.innerHTML = '<div class="adsb-history-empty">history unavailable</div>';
             });
     }
