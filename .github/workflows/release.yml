@@ -14,7 +14,8 @@ jobs:
       - name: Install build dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y dpkg-dev debhelper dh-python python3-setuptools python3-pytest
+          sudo apt-get install -y build-essential dpkg-dev debhelper dh-python \
+            pybuild-plugin-pyproject python3-setuptools python3-pytest
 
       - name: Build .deb
         run: dpkg-buildpackage -us -uc -b
