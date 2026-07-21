@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "adsb-history-logger"
-version = "0.2.0"
+version = "0.2.1"
 description = "Local, unfiltered ADS-B position history logger for dump1090-fa/readsb"
 readme = "README.md"
 license = { text = "MIT" }

@@ -1,3 +1,13 @@
+adsb-history-logger (0.2.1-1) unstable; urgency=medium
+
+  * Fix packaging: activate the debhelper python3 sequence so dh_python3
+    actually runs. Without it, files installed to a build-machine-specific
+    /usr/lib/python3.X/dist-packages path instead of the version-independent
+    /usr/lib/python3/dist-packages, breaking the package on any target
+    running a different Python 3 minor version than the CI runner.
+
+ -- enbay1 <enbay1@gmail.com>  Tue, 21 Jul 2026 12:55:00 +0000
+
 adsb-history-logger (0.2.0-1) unstable; urgency=medium
 
   * Add tar1090 "History" panel integration (adsb-history-web API,
