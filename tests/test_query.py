@@ -70,8 +70,8 @@ def test_resolve_icaos_no_match(tmp_path):
     conn.close()
 
 
-def flushrow(icao, ts, lat=40.0, lon=-123.0):
-    return (icao, "UAL123", 1000, 200.0, 90.0, lat, lon, 0, "1200", 0, ts)
+def flushrow(icao, ts, lat=40.0, lon=-123.0, altitude=1000, on_ground=0):
+    return (icao, "UAL123", altitude, 200.0, 90.0, lat, lon, 0, "1200", on_ground, ts)
 
 
 def test_visits_summary_matches_group_visits(tmp_path):
@@ -83,13 +83,41 @@ def test_visits_summary_matches_group_visits(tmp_path):
     conn.close()
 
 
-def test_track_geojson_full_track(tmp_path):
+def test_track_geojson_emits_one_segment_per_consecutive_pair(tmp_path):
     conn = open_db(str(tmp_path / "history.db"))
-    flush(conn, [flushrow("a835af", 0, lat=40.0, lon=-123.0), flushrow("a835af", 60, lat=40.1, lon=-123.1)])
+    flush(conn, [
+        flushrow("a835af", 0, lat=40.0, lon=-123.0, altitude=1000),
+        flushrow("a835af", 60, lat=40.1, lon=-123.1, altitude=2000),
+        flushrow("a835af", 120, lat=40.2, lon=-123.2, altitude=3000),
+    ])
     geojson = track_geojson(conn, "a835af")
     assert geojson["type"] == "FeatureCollection"
-    coords = geojson["features"][0]["geometry"]["coordinates"]
-    assert coords == [[-123.0, 40.0], [-123.1, 40.1]]
+    assert len(geojson["features"]) == 2
+
+    seg0 = geojson["features"][0]
+    assert seg0["geometry"]["coordinates"] == [[-123.0, 40.0], [-123.1, 40.1]]
+    assert seg0["properties"]["altitude"] == 2000  # trailing point's altitude
+    assert seg0["properties"]["seq"] == 0
+
+    seg1 = geojson["features"][1]
+    assert seg1["geometry"]["coordinates"] == [[-123.1, 40.1], [-123.2, 40.2]]
+    assert seg1["properties"]["seq"] == 1
+    conn.close()
+
+
+def test_track_geojson_single_point_has_no_segments(tmp_path):
+    conn = open_db(str(tmp_path / "history.db"))
+    flush(conn, [flushrow("a835af", 0)])
+    geojson = track_geojson(conn, "a835af")
+    assert geojson["features"] == []
+    conn.close()
+
+
+def test_track_geojson_marks_on_ground_if_either_endpoint_is(tmp_path):
+    conn = open_db(str(tmp_path / "history.db"))
+    flush(conn, [flushrow("a835af", 0, on_ground=1), flushrow("a835af", 60, on_ground=0)])
+    geojson = track_geojson(conn, "a835af")
+    assert geojson["features"][0]["properties"]["on_ground"] is True
     conn.close()
 
 
@@ -97,8 +125,7 @@ def test_track_geojson_limited_to_visit(tmp_path):
     conn = open_db(str(tmp_path / "history.db"))
     flush(conn, [flushrow("a835af", 0), flushrow("a835af", 60), flushrow("a835af", 10000)])
     geojson = track_geojson(conn, "a835af", visit=1, visit_gap=1800)
-    coords = geojson["features"][0]["geometry"]["coordinates"]
-    assert len(coords) == 2
+    assert len(geojson["features"]) == 1
 
 
 def test_track_geojson_out_of_range_visit_returns_none(tmp_path):

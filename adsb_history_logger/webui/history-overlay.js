@@ -34,28 +34,120 @@
         trackLayer = null;
     }
 
-    function drawTrack(icao, visit) {
-        clearTrack();
-        var url = API_BASE + "track/" + icao + (visit ? "?visit=" + visit : "");
+    // Same altitude -> hue breakpoints and ground/unknown colors as stock
+    // SkyAware's ColorByAlt (see /usr/share/skyaware/html/config.js), so
+    // history tracks read consistently with the live map's own coloring.
+    var ALT_BREAKPOINTS = [[2000, 20], [10000, 140], [40000, 300]];
+
+    function altitudeColor(altitude, onGround) {
+        if (onGround) {
+            return "hsla(15, 80%, 20%, 0.9)";
+        }
+        if (altitude === null || altitude === undefined) {
+            return "hsla(0, 0%, 40%, 0.9)";
+        }
+        var h;
+        if (altitude <= ALT_BREAKPOINTS[0][0]) {
+            h = ALT_BREAKPOINTS[0][1];
+        } else if (altitude >= ALT_BREAKPOINTS[ALT_BREAKPOINTS.length - 1][0]) {
+            h = ALT_BREAKPOINTS[ALT_BREAKPOINTS.length - 1][1];
+        } else {
+            h = ALT_BREAKPOINTS[ALT_BREAKPOINTS.length - 1][1];
+            for (var i = 0; i < ALT_BREAKPOINTS.length - 1; i++) {
+                var a0 = ALT_BREAKPOINTS[i][0], h0 = ALT_BREAKPOINTS[i][1];
+                var a1 = ALT_BREAKPOINTS[i + 1][0], h1 = ALT_BREAKPOINTS[i + 1][1];
+                if (altitude >= a0 && altitude <= a1) {
+                    h = h0 + ((altitude - a0) / (a1 - a0)) * (h1 - h0);
+                    break;
+                }
+            }
+        }
+        return "hsla(" + h + ", 85%, 50%, 0.9)";
+    }
+
+    // Initial compass bearing (radians, 0 = north, clockwise) from point 1 to point 2.
+    function bearing(lon1, lat1, lon2, lat2) {
+        var toRad = Math.PI / 180;
+        var phi1 = lat1 * toRad, phi2 = lat2 * toRad;
+        var dLambda = (lon2 - lon1) * toRad;
+        var y = Math.sin(dLambda) * Math.cos(phi2);
+        var x = Math.cos(phi1) * Math.sin(phi2) - Math.sin(phi1) * Math.cos(phi2) * Math.cos(dLambda);
+        return Math.atan2(y, x);
+    }
+
+    // A small filled triangle (in projected map units) pointing along `bearingRad`.
+    function arrowPolygon(centerProjected, bearingRad, sizeMeters) {
+        var pts = [[0, 1], [-0.6, -0.5], [0.6, -0.5]];
+        var cos = Math.cos(bearingRad), sin = Math.sin(bearingRad);
+        var ring = pts.map(function (p) {
+            var x = p[0] * sizeMeters, y = p[1] * sizeMeters;
+            return [
+                centerProjected[0] + (x * cos + y * sin),
+                centerProjected[1] + (-x * sin + y * cos),
+            ];
+        });
+        ring.push(ring[0]);
+        return new ol.geom.Polygon([ring]);
+    }
+
+    function renderTrack(geojson) {
+        var segments = geojson.features;
+        var features = [];
+
+        segments.forEach(function (seg) {
+            var coords = seg.geometry.coordinates;
+            var color = altitudeColor(seg.properties.altitude, seg.properties.on_ground);
+            var line = new ol.Feature({
+                geometry: new ol.geom.LineString([
+                    ol.proj.fromLonLat(coords[0]),
+                    ol.proj.fromLonLat(coords[1]),
+                ]),
+            });
+            line.setStyle(new ol.style.Style({
+                stroke: new ol.style.Stroke({ color: color, width: 3 }),
+            }));
+            features.push(line);
+        });
+
+        var arrowEvery = Math.max(1, Math.ceil(segments.length / 15));
+        for (var i = 0; i < segments.length; i += arrowEvery) {
+            var seg = segments[i];
+            var coords = seg.geometry.coordinates;
+            var brng = bearing(coords[0][0], coords[0][1], coords[1][0], coords[1][1]);
+            var mid = [(coords[0][0] + coords[1][0]) / 2, (coords[0][1] + coords[1][1]) / 2];
+            var color = altitudeColor(seg.properties.altitude, seg.properties.on_ground);
+            var arrow = new ol.Feature({
+                geometry: arrowPolygon(ol.proj.fromLonLat(mid), brng, 250),
+            });
+            arrow.setStyle(new ol.style.Style({
+                fill: new ol.style.Fill({ color: color }),
+                stroke: new ol.style.Stroke({ color: "rgba(0, 0, 0, 0.6)", width: 1 }),
+            }));
+            features.push(arrow);
+        }
+
         trackLayer = new ol.layer.Vector({
             name: "adsbHistoryTrack",
             title: "ADS-B history track",
             zIndex: 250,
-            source: new ol.source.Vector({
-                url: url,
-                format: new ol.format.GeoJSON({
-                    defaultDataProjection: "EPSG:4326",
-                    projection: "EPSG:3857",
-                }),
-            }),
-            style: new ol.style.Style({
-                stroke: new ol.style.Stroke({
-                    color: "rgba(255, 80, 220, 0.9)",
-                    width: 3,
-                }),
-            }),
+            source: new ol.source.Vector({ features: features }),
         });
         OLMap.addLayer(trackLayer);
+    }
+
+    function drawTrack(icao, visit) {
+        clearTrack();
+        var url = API_BASE + "track/" + icao + (visit ? "?visit=" + visit : "");
+        fetch(url)
+            .then(function (resp) {
+                if (!resp.ok) throw new Error("track fetch failed");
+                return resp.json();
+            })
+            .then(renderTrack)
+            .catch(function () {
+                // history panel already reports errors; a failed track draw
+                // just means no overlay appears.
+            });
     }
 
     function renderVisits(icao, visits) {

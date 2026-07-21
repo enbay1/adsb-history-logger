@@ -82,7 +82,12 @@ def visits_summary(conn: sqlite3.Connection, icao: str, since: Optional[float] =
 
 def track_geojson(conn: sqlite3.Connection, icao: str, visit: Optional[int] = None,
                    since: Optional[float] = None, visit_gap: float = DEFAULT_VISIT_GAP) -> Optional[dict]:
-    """A GeoJSON LineString of an aircraft's track, optionally limited to one visit.
+    """An aircraft's track as one small GeoJSON LineString feature per segment,
+    optionally limited to one visit.
+
+    Segments (rather than one long LineString) let a renderer color and
+    orient each piece individually -- e.g. by altitude and direction of
+    travel -- which a single multi-point LineString can't express per-point.
 
     Returns None if `visit` is out of range for the aircraft's visit history.
     """
@@ -94,15 +99,27 @@ def track_geojson(conn: sqlite3.Connection, icao: str, visit: Optional[int] = No
         v = visits[visit - 1]
         positions = [p for p in positions if v["start_ts"] <= p["ts"] <= v["end_ts"]]
 
-    coords = [[p["lon"], p["lat"]] for p in positions if p["lat"] is not None and p["lon"] is not None]
-    return {
-        "type": "FeatureCollection",
-        "features": [{
+    positions = [p for p in positions if p["lat"] is not None and p["lon"] is not None]
+
+    features = []
+    for i in range(len(positions) - 1):
+        a, b = positions[i], positions[i + 1]
+        features.append({
             "type": "Feature",
-            "properties": {"icao": icao},
-            "geometry": {"type": "LineString", "coordinates": coords},
-        }],
-    }
+            "properties": {
+                "icao": icao,
+                "seq": i,
+                "altitude": b["altitude"] if b["altitude"] is not None else a["altitude"],
+                "on_ground": bool(a["on_ground"] or b["on_ground"]),
+                "ts": b["ts"],
+            },
+            "geometry": {
+                "type": "LineString",
+                "coordinates": [[a["lon"], a["lat"]], [b["lon"], b["lat"]]],
+            },
+        })
+
+    return {"type": "FeatureCollection", "features": features}
 
 
 def fetch_positions(conn: sqlite3.Connection, icao: str, since: Optional[float] = None) -> list:
