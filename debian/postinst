@@ -1,0 +1,16 @@
+#!/bin/sh
+set -e
+
+if [ "$1" = "configure" ]; then
+    if ! getent passwd adsb-history-logger >/dev/null; then
+        adduser --system --group --no-create-home \
+            --home /var/lib/adsb-history-logger --shell /usr/sbin/nologin \
+            adsb-history-logger
+    fi
+    mkdir -p /var/lib/adsb-history-logger
+    chown adsb-history-logger:adsb-history-logger /var/lib/adsb-history-logger
+fi
+
+#DEBHELPER#
+
+exit 0

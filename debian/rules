@@ -1,0 +1,13 @@
+#!/usr/bin/make -f
+
+export PYBUILD_NAME=adsb_history_logger
+
+%:
+	dh $@ --buildsystem=pybuild
+
+override_dh_auto_test:
+	python3 -m pytest
+
+override_dh_installsystemd:
+	dh_installsystemd --name=adsb-history-logger
+	dh_installsystemd --name=adsb-history-prune

@@ -1,0 +1,18 @@
+Source: adsb-history-logger
+Section: utils
+Priority: optional
+Maintainer: enbay1 <enbay1@gmail.com>
+Build-Depends: debhelper-compat (= 13), dh-python, pybuild-plugin-pyproject, python3, python3-setuptools, python3-pytest
+Standards-Version: 4.6.2
+Homepage: https://github.com/enbay1/adsb-history-logger
+Rules-Requires-Root: no
+
+Package: adsb-history-logger
+Architecture: all
+Depends: ${python3:Depends}, ${misc:Depends}, python3
+Description: Local, unfiltered ADS-B position history logger
+ Connects to a dump1090-fa/readsb SBS feed and records position history for
+ every aircraft seen into a local SQLite database, independent of any
+ external aggregator's filtering (e.g. FAA LADD/PIA privacy programs).
+ Includes a query CLI for per-aircraft visit history, track export, and
+ registration/type search, plus a retention pruning job.

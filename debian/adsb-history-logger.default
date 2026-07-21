@@ -1,0 +1,8 @@
+# Defaults for adsb-history-logger, sourced by the systemd units.
+# Uncomment and edit to override.
+
+#ADSB_HOST=127.0.0.1
+#ADSB_PORT=30003
+#ADSB_DB_PATH=/var/lib/adsb-history-logger/history.db
+#ADSB_MIN_INTERVAL=10
+#ADSB_FLUSH_INTERVAL=5

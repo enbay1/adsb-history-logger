@@ -1,0 +1,23 @@
+__pycache__/
+*.pyc
+.pytest_cache/
+.venv/
+*.egg-info/
+build/
+dist/
+*.db
+*.db-wal
+*.db-shm
+
+# debhelper build artifacts
+debian/.debhelper/
+debian/adsb-history-logger/
+debian/adsb-history-logger.debhelper.log
+debian/adsb-history-logger.substvars
+debian/*.debhelper
+debian/files
+debian/*.log
+obj-*/
+../*.deb
+../*.buildinfo
+../*.changes

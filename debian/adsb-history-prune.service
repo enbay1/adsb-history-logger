@@ -1,0 +1,14 @@
+[Unit]
+Description=Prune old ADS-B position history
+
+[Service]
+Type=oneshot
+User=adsb-history-logger
+Group=adsb-history-logger
+StateDirectory=adsb-history-logger
+EnvironmentFile=-/etc/default/adsb-history-logger
+ExecStart=/usr/bin/adsb-history-prune --vacuum
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes

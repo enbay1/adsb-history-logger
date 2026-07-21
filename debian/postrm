@@ -1,0 +1,11 @@
+#!/bin/sh
+set -e
+
+if [ "$1" = "purge" ]; then
+    deluser --system adsb-history-logger >/dev/null 2>&1 || true
+    rm -rf /var/lib/adsb-history-logger
+fi
+
+#DEBHELPER#
+
+exit 0
