@@ -140,6 +140,11 @@ so the browser can reach it same-origin; pass `--lighttpd-conf-dir` if
 yours lives somewhere else, or `--no-reload` to apply the config without
 reloading lighttpd immediately.
 
+tar1090's lighttpd config typically caches `*.js` files under its own path
+for two weeks (`Cache-Control: max-age=1209600`). After re-running the
+integration to pick up a newer `history-overlay.js`, hard-refresh your
+browser (Ctrl/Cmd+Shift+R) to bypass that cache.
+
 ## Development
 
 ```sh

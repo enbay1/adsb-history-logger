@@ -1,3 +1,14 @@
+adsb-history-logger (0.2.2-1) unstable; urgency=medium
+
+  * Fix history-overlay.js using a relative API path ("history-api/"),
+    which resolved incorrectly when tar1090 is mounted at a subpath
+    (e.g. /tar1090/) -- requests silently hit lighttpd's 404 fallback
+    (a 200 response of unrelated HTML) instead of the API, breaking
+    the History panel for every aircraft. Now uses an absolute,
+    root-anchored path ("/history-api/").
+
+ -- enbay1 <enbay1@gmail.com>  Tue, 21 Jul 2026 13:15:00 +0000
+
 adsb-history-logger (0.2.1-1) unstable; urgency=medium
 
   * Fix packaging: activate the debhelper python3 sequence so dh_python3

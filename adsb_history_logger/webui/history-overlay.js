@@ -10,7 +10,11 @@
 (function () {
     "use strict";
 
-    var API_BASE = "history-api/";
+    // Root-anchored on purpose: tar1090 can be mounted at a subpath (e.g.
+    // /tar1090/), and a relative path here would resolve underneath that
+    // subpath instead of matching the lighttpd proxy rule, which is
+    // anchored at the site root.
+    var API_BASE = "/history-api/";
     var POLL_MS = 700;
 
     var panel = null;
