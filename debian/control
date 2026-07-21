@@ -15,4 +15,6 @@ Description: Local, unfiltered ADS-B position history logger
  every aircraft seen into a local SQLite database, independent of any
  external aggregator's filtering (e.g. FAA LADD/PIA privacy programs).
  Includes a query CLI for per-aircraft visit history, track export, and
- registration/type search, plus a retention pruning job.
+ registration/type search, a retention pruning job, and an optional
+ tar1090 integration that adds a "History" panel to the aircraft info
+ sidebar for viewing and drawing past tracks on the live map.

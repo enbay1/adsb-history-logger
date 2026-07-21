@@ -1,0 +1,49 @@
+/* adsb-history-logger integration for tar1090 -- original, MIT licensed. */
+
+#adsb_history_panel {
+    margin-top: 6px;
+    padding-top: 6px;
+    border-top: 1px solid rgba(255, 255, 255, 0.15);
+    font-size: 0.9em;
+}
+
+.adsb-history-title {
+    font-weight: bold;
+    margin-bottom: 4px;
+}
+
+.adsb-history-loading,
+.adsb-history-empty {
+    opacity: 0.7;
+    font-style: italic;
+}
+
+.adsb-history-visit {
+    display: flex;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 3px 4px;
+    cursor: pointer;
+    border-radius: 3px;
+}
+
+.adsb-history-visit:hover {
+    background: rgba(255, 255, 255, 0.12);
+}
+
+.adsb-history-visit-meta {
+    opacity: 0.75;
+    white-space: nowrap;
+}
+
+.adsb-history-clear {
+    margin-top: 4px;
+    cursor: pointer;
+    text-decoration: underline;
+    opacity: 0.8;
+    font-size: 0.9em;
+}
+
+.adsb-history-clear:hover {
+    opacity: 1;
+}

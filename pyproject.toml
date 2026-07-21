@@ -15,6 +15,11 @@ authors = [{ name = "enbay1" }]
 adsb-history-logger = "adsb_history_logger.logger:main"
 adsb-history-query = "adsb_history_logger.query:main"
 adsb-history-prune = "adsb_history_logger.prune:main"
+adsb-history-web = "adsb_history_logger.webapi:main"
+adsb-history-integrate-tar1090 = "adsb_history_logger.integrate_tar1090:main"
 
 [tool.setuptools.packages.find]
 include = ["adsb_history_logger*"]
+
+[tool.setuptools.package-data]
+adsb_history_logger = ["webui/*"]

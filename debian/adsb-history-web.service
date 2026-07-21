@@ -1,0 +1,20 @@
+[Unit]
+Description=Local ADS-B history JSON API (for tar1090 integration)
+After=network.target adsb-history-logger.service
+
+[Service]
+Type=simple
+User=adsb-history-logger
+Group=adsb-history-logger
+StateDirectory=adsb-history-logger
+EnvironmentFile=-/etc/default/adsb-history-logger
+ExecStart=/usr/bin/adsb-history-web
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+
+[Install]
+WantedBy=multi-user.target

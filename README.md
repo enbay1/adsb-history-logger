@@ -109,6 +109,37 @@ adsb-history-query search --typecode B738
 adsb-history-prune --retention-days 1095
 ```
 
+## tar1090 integration
+
+If you run [tar1090](https://github.com/wiedehopf/tar1090), `adsb-history-logger`
+can add a "History" panel to its aircraft info sidebar: select any aircraft
+on the map, see its past visits, and click one to draw that track as an
+overlay on the live map.
+
+This works as a thin add-on, not a fork: `adsb-history-web` serves a small
+read-only JSON API (`/history/<icao>`, `/track/<icao>`), and
+`history-overlay.js`/`.css` (original code, bundled with this package) are
+copied alongside tar1090's own files and referenced with three small,
+idempotent insertions into its `index.html` -- tar1090's own GPLv2 code is
+never modified or redistributed. The overlay talks to `OLMap` and
+`SelectedPlane`, the globals tar1090 itself exposes; it doesn't touch
+tar1090's internals otherwise.
+
+To wire it up (after installing the `.deb`, with tar1090 already installed):
+
+```sh
+sudo systemctl enable --now adsb-history-web.service
+sudo adsb-history-integrate-tar1090 --tar1090-dir /usr/local/share/tar1090/html
+```
+
+Safe to re-run `adsb-history-integrate-tar1090` any time, including after a
+tar1090 update resets `index.html` -- it detects and cleanly reapplies its
+own insertions. By default it also drops a lighttpd reverse-proxy snippet
+routing `/history-api/` to the `adsb-history-web` service (127.0.0.1:8091)
+so the browser can reach it same-origin; pass `--lighttpd-conf-dir` if
+yours lives somewhere else, or `--no-reload` to apply the config without
+reloading lighttpd immediately.
+
 ## Development
 
 ```sh

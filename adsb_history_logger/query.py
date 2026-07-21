@@ -73,6 +73,38 @@ def group_visits(positions: list, gap_seconds: float = DEFAULT_VISIT_GAP) -> lis
     return visits
 
 
+def visits_summary(conn: sqlite3.Connection, icao: str, since: Optional[float] = None,
+                    visit_gap: float = DEFAULT_VISIT_GAP) -> list:
+    """Grouped visit history for one aircraft, newest data included."""
+    positions = fetch_positions(conn, icao, since=since)
+    return group_visits(positions, gap_seconds=visit_gap)
+
+
+def track_geojson(conn: sqlite3.Connection, icao: str, visit: Optional[int] = None,
+                   since: Optional[float] = None, visit_gap: float = DEFAULT_VISIT_GAP) -> Optional[dict]:
+    """A GeoJSON LineString of an aircraft's track, optionally limited to one visit.
+
+    Returns None if `visit` is out of range for the aircraft's visit history.
+    """
+    positions = fetch_positions(conn, icao, since=since)
+    if visit is not None:
+        visits = group_visits(positions, gap_seconds=visit_gap)
+        if visit < 1 or visit > len(visits):
+            return None
+        v = visits[visit - 1]
+        positions = [p for p in positions if v["start_ts"] <= p["ts"] <= v["end_ts"]]
+
+    coords = [[p["lon"], p["lat"]] for p in positions if p["lat"] is not None and p["lon"] is not None]
+    return {
+        "type": "FeatureCollection",
+        "features": [{
+            "type": "Feature",
+            "properties": {"icao": icao},
+            "geometry": {"type": "LineString", "coordinates": coords},
+        }],
+    }
+
+
 def fetch_positions(conn: sqlite3.Connection, icao: str, since: Optional[float] = None) -> list:
     query = "SELECT icao, callsign, altitude, ground_speed, track, lat, lon, vertical_rate, squawk, on_ground, ts FROM positions WHERE icao = ?"
     params = [icao]
@@ -134,6 +166,15 @@ def cmd_track(conn: sqlite3.Connection, args) -> None:
         print(f"multiple matches, using {icao.upper()} (others: {', '.join(i.upper() for i in icaos[1:])})",
               file=sys.stderr)
 
+    if args.format == "geojson":
+        geojson = track_geojson(conn, icao, visit=args.visit, since=args.since, visit_gap=args.visit_gap)
+        if geojson is None:
+            print(f"visit {args.visit} out of range", file=sys.stderr)
+            sys.exit(1)
+        json.dump(geojson, sys.stdout)
+        print()
+        return
+
     positions = fetch_positions(conn, icao, since=args.since)
     if args.visit is not None:
         visits = group_visits(positions, gap_seconds=args.visit_gap)
@@ -143,23 +184,13 @@ def cmd_track(conn: sqlite3.Connection, args) -> None:
         v = visits[args.visit - 1]
         positions = [p for p in positions if v["start_ts"] <= p["ts"] <= v["end_ts"]]
 
-    if args.format == "geojson":
-        coords = [[p["lon"], p["lat"]] for p in positions if p["lat"] is not None and p["lon"] is not None]
-        feature = {
-            "type": "Feature",
-            "properties": {"icao": icao},
-            "geometry": {"type": "LineString", "coordinates": coords},
-        }
-        json.dump({"type": "FeatureCollection", "features": [feature]}, sys.stdout)
-        print()
-    else:
-        writer = csv_module.writer(sys.stdout)
-        writer.writerow(["ts_utc", "callsign", "altitude", "ground_speed", "track", "lat", "lon",
-                          "vertical_rate", "squawk", "on_ground"])
-        for p in positions:
-            writer.writerow([fmt_ts(p["ts"]), p["callsign"], p["altitude"], p["ground_speed"],
-                              p["track"], p["lat"], p["lon"], p["vertical_rate"], p["squawk"],
-                              p["on_ground"]])
+    writer = csv_module.writer(sys.stdout)
+    writer.writerow(["ts_utc", "callsign", "altitude", "ground_speed", "track", "lat", "lon",
+                      "vertical_rate", "squawk", "on_ground"])
+    for p in positions:
+        writer.writerow([fmt_ts(p["ts"]), p["callsign"], p["altitude"], p["ground_speed"],
+                          p["track"], p["lat"], p["lon"], p["vertical_rate"], p["squawk"],
+                          p["on_ground"]])
 
 
 def cmd_search(conn: sqlite3.Connection, args) -> None:

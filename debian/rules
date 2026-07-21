@@ -10,4 +10,5 @@ override_dh_auto_test:
 
 override_dh_installsystemd:
 	dh_installsystemd --name=adsb-history-logger
+	dh_installsystemd --name=adsb-history-web
 	dh_installsystemd --name=adsb-history-prune

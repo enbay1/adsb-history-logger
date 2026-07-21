@@ -1,5 +1,5 @@
 from adsb_history_logger.db import flush, open_db
-from adsb_history_logger.query import group_visits, resolve_icaos
+from adsb_history_logger.query import group_visits, resolve_icaos, track_geojson, visits_summary
 
 
 def pos(ts, altitude=1000, callsign="UAL123"):
@@ -67,4 +67,42 @@ def test_resolve_icaos_by_registration(tmp_path):
 def test_resolve_icaos_no_match(tmp_path):
     conn = open_db(str(tmp_path / "history.db"))
     assert resolve_icaos(conn, "nonexistent") == []
+    conn.close()
+
+
+def flushrow(icao, ts, lat=40.0, lon=-123.0):
+    return (icao, "UAL123", 1000, 200.0, 90.0, lat, lon, 0, "1200", 0, ts)
+
+
+def test_visits_summary_matches_group_visits(tmp_path):
+    conn = open_db(str(tmp_path / "history.db"))
+    flush(conn, [flushrow("a835af", 0), flushrow("a835af", 60)])
+    visits = visits_summary(conn, "a835af")
+    assert len(visits) == 1
+    assert visits[0]["count"] == 2
+    conn.close()
+
+
+def test_track_geojson_full_track(tmp_path):
+    conn = open_db(str(tmp_path / "history.db"))
+    flush(conn, [flushrow("a835af", 0, lat=40.0, lon=-123.0), flushrow("a835af", 60, lat=40.1, lon=-123.1)])
+    geojson = track_geojson(conn, "a835af")
+    assert geojson["type"] == "FeatureCollection"
+    coords = geojson["features"][0]["geometry"]["coordinates"]
+    assert coords == [[-123.0, 40.0], [-123.1, 40.1]]
+    conn.close()
+
+
+def test_track_geojson_limited_to_visit(tmp_path):
+    conn = open_db(str(tmp_path / "history.db"))
+    flush(conn, [flushrow("a835af", 0), flushrow("a835af", 60), flushrow("a835af", 10000)])
+    geojson = track_geojson(conn, "a835af", visit=1, visit_gap=1800)
+    coords = geojson["features"][0]["geometry"]["coordinates"]
+    assert len(coords) == 2
+
+
+def test_track_geojson_out_of_range_visit_returns_none(tmp_path):
+    conn = open_db(str(tmp_path / "history.db"))
+    flush(conn, [flushrow("a835af", 0)])
+    assert track_geojson(conn, "a835af", visit=5) is None
     conn.close()
