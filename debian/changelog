@@ -1,3 +1,15 @@
+adsb-history-logger (0.3.2-1) unstable; urgency=medium
+
+  * Track color now reads tar1090's own live ColorByAlt config at
+    runtime instead of a hardcoded copy of stock SkyAware's values,
+    which didn't match this install's actual (customized) config.js.
+  * Fix History panel getting permanently stuck on "history
+    unavailable" after one transient fetch failure (e.g. right after
+    page load, before tar1090 has fully settled) -- it now retries
+    automatically every 2s while the same aircraft stays selected.
+
+ -- enbay1 <enbay1@gmail.com>  Tue, 21 Jul 2026 15:35:00 +0000
+
 adsb-history-logger (0.3.1-1) unstable; urgency=medium
 
   * Fix history tracks not rendering at all (regression in 0.3.0). The

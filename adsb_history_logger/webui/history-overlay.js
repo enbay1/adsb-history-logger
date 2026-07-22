@@ -34,35 +34,45 @@
         trackLayer = null;
     }
 
-    // Same altitude -> hue breakpoints and ground/unknown colors as stock
-    // SkyAware's ColorByAlt (see /usr/share/skyaware/html/config.js), so
-    // history tracks read consistently with the live map's own coloring.
-    var ALT_BREAKPOINTS = [[2000, 20], [10000, 140], [40000, 300]];
+    // Reads tar1090's own live ColorByAlt config (declared globally by its
+    // config.js) rather than keeping a hardcoded copy, so track colors
+    // always match whatever the live map is actually drawing -- including
+    // if it's customized later.
+    var FALLBACK_BREAKPOINTS = [[2000, 20], [10000, 140], [40000, 300]];
 
     function altitudeColor(altitude, onGround) {
+        var cfg = (typeof ColorByAlt !== "undefined" && ColorByAlt) ? ColorByAlt : null;
+
         if (onGround) {
+            if (cfg && cfg.ground) return "hsla(" + cfg.ground.h + ", " + cfg.ground.s + "%, " + cfg.ground.l + "%, 0.9)";
             return "hsla(15, 80%, 20%, 0.9)";
         }
         if (altitude === null || altitude === undefined) {
+            if (cfg && cfg.unknown) return "hsla(" + cfg.unknown.h + ", " + cfg.unknown.s + "%, " + cfg.unknown.l + "%, 0.9)";
             return "hsla(0, 0%, 40%, 0.9)";
         }
+
+        var breakpoints = (cfg && cfg.air && cfg.air.h) ? cfg.air.h.map(function (b) { return [b.alt, b.val]; }) : FALLBACK_BREAKPOINTS;
+        var s = (cfg && cfg.air) ? cfg.air.s : 85;
+        var l = (cfg && cfg.air) ? cfg.air.l : 50;
+
         var h;
-        if (altitude <= ALT_BREAKPOINTS[0][0]) {
-            h = ALT_BREAKPOINTS[0][1];
-        } else if (altitude >= ALT_BREAKPOINTS[ALT_BREAKPOINTS.length - 1][0]) {
-            h = ALT_BREAKPOINTS[ALT_BREAKPOINTS.length - 1][1];
+        if (altitude <= breakpoints[0][0]) {
+            h = breakpoints[0][1];
+        } else if (altitude >= breakpoints[breakpoints.length - 1][0]) {
+            h = breakpoints[breakpoints.length - 1][1];
         } else {
-            h = ALT_BREAKPOINTS[ALT_BREAKPOINTS.length - 1][1];
-            for (var i = 0; i < ALT_BREAKPOINTS.length - 1; i++) {
-                var a0 = ALT_BREAKPOINTS[i][0], h0 = ALT_BREAKPOINTS[i][1];
-                var a1 = ALT_BREAKPOINTS[i + 1][0], h1 = ALT_BREAKPOINTS[i + 1][1];
+            h = breakpoints[breakpoints.length - 1][1];
+            for (var i = 0; i < breakpoints.length - 1; i++) {
+                var a0 = breakpoints[i][0], h0 = breakpoints[i][1];
+                var a1 = breakpoints[i + 1][0], h1 = breakpoints[i + 1][1];
                 if (altitude >= a0 && altitude <= a1) {
                     h = h0 + ((altitude - a0) / (a1 - a0)) * (h1 - h0);
                     break;
                 }
             }
         }
-        return "hsla(" + h + ", 85%, 50%, 0.9)";
+        return "hsla(" + h + ", " + s + "%, " + l + "%, 0.9)";
     }
 
     // Initial compass bearing (radians, 0 = north, clockwise) from point 1 to point 2.
@@ -189,6 +199,8 @@
         el.getElementsByClassName("adsb-history-clear")[0].addEventListener("click", clearTrack);
     }
 
+    var RETRY_MS = 2000;
+
     function loadHistory(icao) {
         var el = ensurePanel();
         if (!el) return;
@@ -203,8 +215,14 @@
                 renderVisits(icao, data.visits);
             })
             .catch(function (e) {
-                console.error("adsb-history-logger: failed to load history", e);
-                el.innerHTML = '<div class="adsb-history-empty">history unavailable</div>';
+                console.error("adsb-history-logger: failed to load history, will retry", e);
+                el.innerHTML = '<div class="adsb-history-empty">history unavailable, retrying...</div>';
+                // Keep retrying while this aircraft is still selected, rather
+                // than getting permanently stuck after one transient failure
+                // (e.g. right after page load, before tar1090 has settled).
+                window.setTimeout(function () {
+                    if (lastIcao === icao) loadHistory(icao);
+                }, RETRY_MS);
             });
     }
 
@@ -213,8 +231,8 @@
         var icao = plane ? plane.icao : null;
 
         if (icao !== lastIcao) {
-            lastIcao = icao;
             clearTrack();
+            lastIcao = icao;
             if (icao) {
                 loadHistory(icao);
             } else {
