@@ -1,3 +1,17 @@
+adsb-history-logger (0.3.3-1) unstable; urgency=medium
+
+  * Cache-bust the injected history-overlay.js/css tags with a ?v=
+    query string derived from the package version. tar1090's lighttpd
+    config caches *.js/*.css for 14 days; a stale cached copy has
+    caused confusion (e.g. an old flat-color track render) more than
+    once, and this makes each release force a fresh fetch regardless.
+  * Add a JS unit test suite (tests-js/, run via `node --test`) for
+    history-overlay.js's altitude-color and bearing math, wired into
+    CI. All three real bugs shipped in this file so far went out
+    without any test coverage catching them.
+
+ -- enbay1 <enbay1@gmail.com>  Tue, 21 Jul 2026 16:00:00 +0000
+
 adsb-history-logger (0.3.2-1) unstable; urgency=medium
 
   * Track color now reads tar1090's own live ColorByAlt config at

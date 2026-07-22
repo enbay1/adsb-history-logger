@@ -242,5 +242,16 @@
         }
     }
 
-    window.setInterval(poll, POLL_MS);
+    // Guarded rather than a bare call so this file can also be `require()`d
+    // under Node for unit tests (see tests-js/) without needing a real
+    // browser `window`.
+    if (typeof window !== "undefined") {
+        window.setInterval(poll, POLL_MS);
+    }
+
+    // Exposes the pure logic functions for tests-js/ under Node; a no-op
+    // in the browser, where `module` doesn't exist.
+    if (typeof module !== "undefined" && module.exports) {
+        module.exports = { altitudeColor: altitudeColor, bearing: bearing, arrowLineString: arrowLineString };
+    }
 })();

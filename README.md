@@ -140,10 +140,13 @@ so the browser can reach it same-origin; pass `--lighttpd-conf-dir` if
 yours lives somewhere else, or `--no-reload` to apply the config without
 reloading lighttpd immediately.
 
-tar1090's lighttpd config typically caches `*.js` files under its own path
-for two weeks (`Cache-Control: max-age=1209600`). After re-running the
-integration to pick up a newer `history-overlay.js`, hard-refresh your
-browser (Ctrl/Cmd+Shift+R) to bypass that cache.
+tar1090's lighttpd config typically caches `*.js`/`*.css` files under its
+own path for two weeks (`Cache-Control: max-age=1209600`). The integration
+script appends a `?v=<version>` query string to the injected `<script>`/
+`<link>` tags specifically to defeat this -- each release forces a fresh
+fetch regardless of that header, so a plain reload after re-running
+`adsb-history-integrate-tar1090` is normally enough (a hard-refresh only
+matters if you're re-testing the *same* version again).
 
 ## Development
 
@@ -151,6 +154,9 @@ browser (Ctrl/Cmd+Shift+R) to bypass that cache.
 python3 -m venv .venv && .venv/bin/pip install -e .
 .venv/bin/pip install pytest
 .venv/bin/python -m pytest
+
+# browser-side logic (adsb_history_logger/webui/history-overlay.js)
+node --test tests-js/
 ```
 
 ## Building the .deb

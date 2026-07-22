@@ -21,6 +21,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+from adsb_history_logger import __version__
+
 BEGIN_MARKER = "<!-- adsb-history-logger:begin -->"
 END_MARKER = "<!-- adsb-history-logger:end -->"
 
@@ -46,7 +48,13 @@ def patch_index_html(tar1090_dir: Path) -> None:
     html = index_path.read_text(encoding="utf-8")
     html = _strip_previous(html)
 
-    css_tag = f'{BEGIN_MARKER}\n<link rel="stylesheet" href="history-overlay.css">\n{END_MARKER}\n'
+    # The ?v= query string is a cache-buster: tar1090's lighttpd config
+    # caches *.js/*.css under its path for 14 days, and a stale copy has
+    # caused real confusion more than once. Browsers key their cache by
+    # the full URL including the query string, so bumping this on every
+    # release forces a fresh fetch regardless of that Cache-Control header.
+    css_tag = (f'{BEGIN_MARKER}\n<link rel="stylesheet" href="history-overlay.css?v={__version__}">\n'
+               f'{END_MARKER}\n')
     if "</head>" not in html:
         raise RuntimeError(f"couldn't find </head> in {index_path}")
     html = html.replace("</head>", css_tag + "</head>", 1)
@@ -62,7 +70,8 @@ def patch_index_html(tar1090_dir: Path) -> None:
     panel_html = f'\n{BEGIN_MARKER}\n<div id="adsb_history_panel"></div>\n{END_MARKER}\n'
     html = html[:close_div] + panel_html + html[close_div:]
 
-    script_tag = f'{BEGIN_MARKER}\n<script src="history-overlay.js"></script>\n{END_MARKER}\n'
+    script_tag = (f'{BEGIN_MARKER}\n<script src="history-overlay.js?v={__version__}"></script>\n'
+                  f'{END_MARKER}\n')
     if "</body>" not in html:
         raise RuntimeError(f"couldn't find </body> in {index_path}")
     html = html.replace("</body>", script_tag + "</body>", 1)

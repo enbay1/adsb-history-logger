@@ -6,7 +6,7 @@ on:
   pull_request:
 
 jobs:
-  test:
+  test-python:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -15,3 +15,12 @@ jobs:
           python-version: "3.11"
       - run: pip install -e . pytest
       - run: pytest -q
+
+  test-js:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - run: node --test tests-js/
