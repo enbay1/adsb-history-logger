@@ -1,3 +1,22 @@
+adsb-history-logger (0.3.4-1) unstable; urgency=medium
+
+  * History track colors now delegate to tar1090's own global
+    altitudeColor() function (from planeObject_*.js) instead of a
+    hand-rolled reimplementation of the ColorByAlt hue-interpolation
+    math. The reimplementation was close but not identical -- it didn't
+    replicate tar1090's baro-altitude adjustment, altitude quantization,
+    or h/s/l range clamping -- so history tracks could render a visibly
+    different (in one report, flat/near-black) color than the live map's
+    own tracks for the same aircraft/altitude. Delegating guarantees
+    byte-identical colors by construction.
+  * Direction arrows are now sized in constant screen pixels (scaled by
+    the map's current resolution) instead of a fixed 250m real-world
+    size. At the zoom level you'd normally view a whole track at, 250m
+    is sub-pixel and invisible; arrows were very likely never visible in
+    practice despite rendering without error.
+
+ -- enbay1 <enbay1@gmail.com>  Wed, 22 Jul 2026 00:00:00 +0000
+
 adsb-history-logger (0.3.3-1) unstable; urgency=medium
 
   * Cache-bust the injected history-overlay.js/css tags with a ?v=

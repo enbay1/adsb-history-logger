@@ -85,6 +85,40 @@ test("altitudeColor: falls back to built-in breakpoints when ColorByAlt is unava
     });
 });
 
+test("altitudeColor: delegates to tar1090's own window.altitudeColor when present, for byte-identical live-track colors", () => {
+    // tar1090 (planeObject_*.js) does baro adjustment, quantized rounding,
+    // and h/s/l clamping our own fallback math doesn't replicate -- when
+    // embedded in tar1090, we must defer to its function rather than a
+    // parallel reimplementation that can silently drift out of sync.
+    const prevWindow = global.window;
+    global.window = {
+        altitudeColor: function (alt) {
+            assert.equal(alt, 6000);
+            return [99, 77, 33];
+        },
+    };
+    try {
+        assert.equal(altitudeColor(6000, false), "hsla(99, 77%, 33%, 0.9)");
+    } finally {
+        global.window = prevWindow;
+    }
+});
+
+test("altitudeColor: passes the 'ground' sentinel string to window.altitudeColor when onGround is true", () => {
+    const prevWindow = global.window;
+    global.window = {
+        altitudeColor: function (alt) {
+            assert.equal(alt, "ground");
+            return [0, 0, 45];
+        },
+    };
+    try {
+        assert.equal(altitudeColor(0, true), "hsla(0, 0%, 45%, 0.9)");
+    } finally {
+        global.window = prevWindow;
+    }
+});
+
 test("bearing: due north is ~0 radians", () => {
     assert.ok(Math.abs(bearing(0, 0, 0, 1)) < 1e-9);
 });

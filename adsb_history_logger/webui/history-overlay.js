@@ -34,13 +34,26 @@
         trackLayer = null;
     }
 
-    // Reads tar1090's own live ColorByAlt config (declared globally by its
-    // config.js) rather than keeping a hardcoded copy, so track colors
-    // always match whatever the live map is actually drawing -- including
-    // if it's customized later.
+    // tar1090 (planeObject_*.js) exposes its own global altitudeColor(alt)
+    // -> [h, s, l], the exact function it uses to color the live plane
+    // markers/trails -- including baro-altitude adjustment, quantized
+    // rounding, and h/s/l range clamping that our own fallback below
+    // doesn't replicate. Delegating to it when present guarantees history
+    // tracks are colored identically to the live map, rather than merely
+    // similarly via a hand-rolled reimplementation kept in sync by hand.
+    function altitudeColor(altitude, onGround) {
+        if (typeof window !== "undefined" && typeof window.altitudeColor === "function") {
+            var hsl = window.altitudeColor(onGround ? "ground" : altitude);
+            return "hsla(" + hsl[0] + ", " + hsl[1] + "%, " + hsl[2] + "%, 0.9)";
+        }
+        return altitudeColorFallback(altitude, onGround);
+    }
+
+    // Used under Node (tests-js/, no `window`/tar1090 globals) and as a
+    // defensive fallback if tar1090's own function is ever unavailable.
     var FALLBACK_BREAKPOINTS = [[2000, 20], [10000, 140], [40000, 300]];
 
-    function altitudeColor(altitude, onGround) {
+    function altitudeColorFallback(altitude, onGround) {
         var cfg = (typeof ColorByAlt !== "undefined" && ColorByAlt) ? ColorByAlt : null;
 
         if (onGround) {
@@ -103,6 +116,17 @@
         return new ol.geom.LineString(points);
     }
 
+    // Arrows are sized in screen pixels, not fixed map meters: a fixed
+    // meter size is sub-pixel (invisible) at the zoom level you'd normally
+    // view a whole track at, and oversized when zoomed in on one segment.
+    var ARROW_PIXELS = 14;
+
+    function arrowSizeMeters() {
+        var view = (typeof OLMap !== "undefined" && OLMap && OLMap.getView) ? OLMap.getView() : null;
+        var resolution = view ? view.getResolution() : null;
+        return resolution ? ARROW_PIXELS * resolution : 250;
+    }
+
     function renderTrack(geojson) {
         var segments = geojson.features;
         var features = [];
@@ -132,7 +156,7 @@
                 var mid = [(coords[0][0] + coords[1][0]) / 2, (coords[0][1] + coords[1][1]) / 2];
                 var color = altitudeColor(seg.properties.altitude, seg.properties.on_ground);
                 var arrow = new ol.Feature({
-                    geometry: arrowLineString(ol.proj.fromLonLat(mid), brng, 250),
+                    geometry: arrowLineString(ol.proj.fromLonLat(mid), brng, arrowSizeMeters()),
                 });
                 arrow.setStyle(new ol.style.Style({
                     stroke: new ol.style.Stroke({ color: color, width: 2 }),
