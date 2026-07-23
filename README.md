@@ -90,10 +90,12 @@ win): `ADSB_HOST`, `ADSB_PORT`, `ADSB_DB_PATH`, `ADSB_MIN_INTERVAL`,
 # Import/refresh aircraft reference data (registration, type, operator)
 adsb-history-query refresh-db /path/to/aircraft-database.csv
 
-# Show visit history for an aircraft, by ICAO hex, callsign, registration, or type
+# Show visit history for an aircraft, by ICAO hex, callsign, registration,
+# type, operator, or owner
 adsb-history-query aircraft a835af
 adsb-history-query aircraft N12345
 adsb-history-query aircraft UAL123
+adsb-history-query aircraft "Acme Charter LLC"
 
 # Dump the raw track for an aircraft's most recent visit
 adsb-history-query track a835af --visit 1
@@ -104,6 +106,7 @@ adsb-history-query track a835af --format geojson > track.geojson
 # Search the reference database
 adsb-history-query search --operator "United Airlines"
 adsb-history-query search --typecode B738
+adsb-history-query search --owner "Acme Charter"
 
 # Manually prune old history (normally handled by the packaged timer)
 adsb-history-prune --retention-days 1095

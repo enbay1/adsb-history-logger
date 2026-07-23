@@ -1,5 +1,7 @@
+from types import SimpleNamespace
+
 from adsb_history_logger.db import flush, open_db
-from adsb_history_logger.query import group_visits, resolve_icaos, track_geojson, visits_summary
+from adsb_history_logger.query import cmd_search, group_visits, resolve_icaos, track_geojson, visits_summary
 
 
 def pos(ts, altitude=1000, callsign="UAL123"):
@@ -61,6 +63,17 @@ def test_resolve_icaos_by_registration(tmp_path):
     )
     conn.commit()
     assert resolve_icaos(conn, "N12345") == ["a835af"]
+    conn.close()
+
+
+def test_resolve_icaos_by_owner(tmp_path):
+    conn = open_db(str(tmp_path / "history.db"))
+    conn.execute(
+        """INSERT INTO aircraft_ref (icao24, registration, typecode, manufacturer, model, operator, owner, updated_at)
+           VALUES ('a835af', 'N12345', 'B738', 'Boeing', '737-800', 'United', 'Acme Charter LLC', 0)"""
+    )
+    conn.commit()
+    assert resolve_icaos(conn, "Acme Charter") == ["a835af"]
     conn.close()
 
 
@@ -132,4 +145,46 @@ def test_track_geojson_out_of_range_visit_returns_none(tmp_path):
     conn = open_db(str(tmp_path / "history.db"))
     flush(conn, [flushrow("a835af", 0)])
     assert track_geojson(conn, "a835af", visit=5) is None
+    conn.close()
+
+
+def search_args(registration=None, typecode=None, operator=None, model=None, owner=None):
+    return SimpleNamespace(registration=registration, typecode=typecode, operator=operator,
+                            model=model, owner=owner)
+
+
+def test_cmd_search_by_owner_matches(tmp_path, capsys):
+    conn = open_db(str(tmp_path / "history.db"))
+    conn.execute(
+        """INSERT INTO aircraft_ref (icao24, registration, typecode, manufacturer, model, operator, owner, updated_at)
+           VALUES ('a835af', 'N12345', 'B738', 'Boeing', '737-800', 'United', 'Acme Charter LLC', 0)"""
+    )
+    conn.commit()
+    cmd_search(conn, search_args(owner="Acme"))
+    out = capsys.readouterr().out
+    assert "A835AF" in out
+    assert "Acme Charter LLC" in out
+    conn.close()
+
+
+def test_cmd_search_by_owner_no_match_prints_nothing(tmp_path, capsys):
+    conn = open_db(str(tmp_path / "history.db"))
+    conn.execute(
+        """INSERT INTO aircraft_ref (icao24, registration, typecode, manufacturer, model, operator, owner, updated_at)
+           VALUES ('a835af', 'N12345', 'B738', 'Boeing', '737-800', 'United', 'Acme Charter LLC', 0)"""
+    )
+    conn.commit()
+    cmd_search(conn, search_args(owner="Nonexistent Corp"))
+    assert capsys.readouterr().out == ""
+    conn.close()
+
+
+def test_cmd_search_requires_at_least_one_field(tmp_path, capsys):
+    conn = open_db(str(tmp_path / "history.db"))
+    try:
+        cmd_search(conn, search_args())
+        assert False, "expected SystemExit"
+    except SystemExit as e:
+        assert e.code == 1
+    assert "owner" in capsys.readouterr().err
     conn.close()

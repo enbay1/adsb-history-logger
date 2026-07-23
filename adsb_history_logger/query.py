@@ -35,8 +35,8 @@ def resolve_icaos(conn: sqlite3.Connection, query: str) -> list:
 
     cur = conn.execute(
         """SELECT icao24 FROM aircraft_ref
-           WHERE registration LIKE ? OR typecode LIKE ? OR operator LIKE ? OR model LIKE ?""",
-        (like, like, like, like),
+           WHERE registration LIKE ? OR typecode LIKE ? OR operator LIKE ? OR model LIKE ? OR owner LIKE ?""",
+        (like, like, like, like, like),
     )
     icaos.update(row[0] for row in cur.fetchall())
 
@@ -214,19 +214,20 @@ def cmd_search(conn: sqlite3.Connection, args) -> None:
     clauses = []
     params = []
     for field, value in (("registration", args.registration), ("typecode", args.typecode),
-                          ("operator", args.operator), ("model", args.model)):
+                          ("operator", args.operator), ("model", args.model), ("owner", args.owner)):
         if value:
             clauses.append(f"{field} LIKE ?")
             params.append(f"%{value}%")
     if not clauses:
-        print("specify at least one of --registration/--typecode/--operator/--model", file=sys.stderr)
+        print("specify at least one of --registration/--typecode/--operator/--model/--owner", file=sys.stderr)
         sys.exit(1)
 
-    query = f"SELECT icao24, registration, typecode, model, operator FROM aircraft_ref WHERE {' OR '.join(clauses)} LIMIT 200"
-    for icao24, reg, typecode, model, operator in conn.execute(query, params):
+    query = f"SELECT icao24, registration, typecode, model, operator, owner FROM aircraft_ref WHERE {' OR '.join(clauses)} LIMIT 200"
+    for icao24, reg, typecode, model, operator, owner in conn.execute(query, params):
         seen = conn.execute("SELECT message_count FROM aircraft WHERE icao = ?", (icao24,)).fetchone()
         seen_str = f"{seen[0]} fixes logged" if seen else "not seen locally"
-        print(f"{icao24.upper()}  {reg or '?':<10} {typecode or '?':<6} {model or '?':<20} {operator or '?':<20} ({seen_str})")
+        print(f"{icao24.upper()}  {reg or '?':<10} {typecode or '?':<6} {model or '?':<20} "
+              f"{operator or '?':<20} {owner or '?':<20} ({seen_str})")
 
 
 def cmd_refresh_db(conn: sqlite3.Connection, args) -> None:
@@ -240,13 +241,13 @@ def main() -> None:
     sub = parser.add_subparsers(dest="command", required=True)
 
     p_aircraft = sub.add_parser("aircraft", help="show visit history for an aircraft")
-    p_aircraft.add_argument("query", help="ICAO hex, callsign, registration, typecode, or operator")
+    p_aircraft.add_argument("query", help="ICAO hex, callsign, registration, typecode, operator, or owner")
     p_aircraft.add_argument("--since", type=float, default=None, help="unix timestamp lower bound")
     p_aircraft.add_argument("--visit-gap", type=float, default=DEFAULT_VISIT_GAP)
     p_aircraft.set_defaults(func=cmd_aircraft)
 
     p_track = sub.add_parser("track", help="dump raw position fixes for an aircraft")
-    p_track.add_argument("query", help="ICAO hex, callsign, registration, typecode, or operator")
+    p_track.add_argument("query", help="ICAO hex, callsign, registration, typecode, operator, or owner")
     p_track.add_argument("--since", type=float, default=None)
     p_track.add_argument("--visit", type=int, default=None, help="limit to the Nth visit (1-indexed)")
     p_track.add_argument("--visit-gap", type=float, default=DEFAULT_VISIT_GAP)
@@ -258,6 +259,7 @@ def main() -> None:
     p_search.add_argument("--typecode")
     p_search.add_argument("--operator")
     p_search.add_argument("--model")
+    p_search.add_argument("--owner")
     p_search.set_defaults(func=cmd_search)
 
     p_refresh = sub.add_parser("refresh-db", help="(re)import the aircraft reference CSV")

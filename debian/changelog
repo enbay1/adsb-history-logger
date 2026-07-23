@@ -1,3 +1,13 @@
+adsb-history-logger (0.3.5-1) unstable; urgency=medium
+
+  * `adsb-history-query search` now accepts --owner, and the free-text
+    query used by `aircraft`/`track` (ICAO hex/callsign/registration/
+    typecode/operator) now also matches against the owner field. The
+    aircraft_ref table and CSV import already carried owner data (shown
+    by `aircraft`), it just wasn't searchable on its own.
+
+ -- enbay1 <enbay1@gmail.com>  Wed, 22 Jul 2026 01:00:00 +0000
+
 adsb-history-logger (0.3.4-1) unstable; urgency=medium
 
   * History track colors now delegate to tar1090's own global
