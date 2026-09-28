@@ -1,7 +1,9 @@
 from types import SimpleNamespace
 
 from adsb_history_logger.db import flush, open_db
-from adsb_history_logger.query import cmd_search, group_visits, resolve_icaos, track_geojson, visits_summary
+from adsb_history_logger.query import (
+    cmd_search, group_visits, lookup_aircraft, resolve_icaos, track_geojson, visits_summary,
+)
 
 
 def pos(ts, altitude=1000, callsign="UAL123"):
@@ -187,4 +189,64 @@ def test_cmd_search_requires_at_least_one_field(tmp_path, capsys):
     except SystemExit as e:
         assert e.code == 1
     assert "owner" in capsys.readouterr().err
+    conn.close()
+
+
+def add_ref(conn, icao24, registration, typecode="GLF6", owner="Cbair Llc"):
+    conn.execute(
+        """INSERT INTO aircraft_ref (icao24, registration, typecode, manufacturer, model, operator, owner, updated_at)
+           VALUES (?, ?, ?, 'Gulfstream', 'G650ER', NULL, ?, 0)""",
+        (icao24, registration, typecode, owner),
+    )
+    conn.commit()
+
+
+def test_lookup_aircraft_by_registration_returns_ref_fields(tmp_path):
+    conn = open_db(str(tmp_path / "history.db"))
+    flush(conn, [flushrow("a97659", 1000.0)])
+    add_ref(conn, "a97659", "N709DS")
+    results = lookup_aircraft(conn, "n709ds")
+    assert [r["icao"] for r in results] == ["a97659"]
+    assert results[0]["registration"] == "N709DS"
+    assert results[0]["typecode"] == "GLF6"
+    assert results[0]["message_count"] == 1
+    conn.close()
+
+
+def test_lookup_aircraft_skips_aircraft_never_seen_locally(tmp_path):
+    conn = open_db(str(tmp_path / "history.db"))
+    add_ref(conn, "a97659", "N709DS")
+    assert lookup_aircraft(conn, "N709DS") == []
+    conn.close()
+
+
+def test_lookup_aircraft_by_partial_hex_and_callsign(tmp_path):
+    conn = open_db(str(tmp_path / "history.db"))
+    flush(conn, [flushrow("a97659", 1000.0)])
+    assert [r["icao"] for r in lookup_aircraft(conn, "A976")] == ["a97659"]
+    assert [r["icao"] for r in lookup_aircraft(conn, "ual1")] == ["a97659"]
+    conn.close()
+
+
+def test_lookup_aircraft_matches_registration_without_dash(tmp_path):
+    conn = open_db(str(tmp_path / "history.db"))
+    flush(conn, [flushrow("400abc", 1000.0)])
+    add_ref(conn, "400abc", "G-ABCD", owner="Someone")
+    assert [r["icao"] for r in lookup_aircraft(conn, "GABCD")] == ["400abc"]
+    assert [r["icao"] for r in lookup_aircraft(conn, "G-ABCD")] == ["400abc"]
+    conn.close()
+
+
+def test_lookup_aircraft_newest_first_and_limited(tmp_path):
+    conn = open_db(str(tmp_path / "history.db"))
+    flush(conn, [flushrow("a00001", 1000.0), flushrow("a00002", 3000.0), flushrow("a00003", 2000.0)])
+    assert [r["icao"] for r in lookup_aircraft(conn, "a0000")] == ["a00002", "a00003", "a00001"]
+    assert len(lookup_aircraft(conn, "a0000", limit=2)) == 2
+    conn.close()
+
+
+def test_lookup_aircraft_blank_query(tmp_path):
+    conn = open_db(str(tmp_path / "history.db"))
+    flush(conn, [flushrow("a97659", 1000.0)])
+    assert lookup_aircraft(conn, "   ") == []
     conn.close()

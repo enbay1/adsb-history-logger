@@ -21,6 +21,27 @@
     var trackLayer = null;
     var lastIcao = null;
 
+    // Everything shown via innerHTML that came from the database (callsigns,
+    // registrations, owner names from the reference CSV) goes through this.
+    function escapeHtml(value) {
+        return String(value === null || value === undefined ? "" : value)
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")
+            .replace(/"/g, "&quot;")
+            .replace(/'/g, "&#39;");
+    }
+
+    // One-line label for a /lookup result, e.g. "N709DS · GLF6 · A97659".
+    function describeAircraft(r) {
+        var parts = [];
+        if (r.registration) parts.push(r.registration);
+        else if (r.last_callsign) parts.push(r.last_callsign);
+        if (r.typecode) parts.push(r.typecode);
+        parts.push(String(r.icao).toUpperCase());
+        return parts.join(" \u00b7 ");
+    }
+
     function ensurePanel() {
         if (panel) return panel;
         panel = document.getElementById("adsb_history_panel");
@@ -127,7 +148,7 @@
         return resolution ? ARROW_PIXELS * resolution : 250;
     }
 
-    function renderTrack(geojson) {
+    function renderTrack(geojson, fit) {
         var segments = geojson.features;
         var features = [];
 
@@ -174,9 +195,22 @@
             source: new ol.source.Vector({ features: features }),
         });
         OLMap.addLayer(trackLayer);
+
+        // Tracks drawn from the history search are usually of aircraft long
+        // gone from the live map, so their track may well be off-screen.
+        if (fit && features.length) {
+            try {
+                OLMap.getView().fit(trackLayer.getSource().getExtent(), {
+                    padding: [60, 60, 60, 60],
+                    maxZoom: 12,
+                });
+            } catch (e) {
+                console.error("adsb-history-logger: couldn't zoom to track", e);
+            }
+        }
     }
 
-    function drawTrack(icao, visit) {
+    function drawTrack(icao, visit, fit) {
         clearTrack();
         var url = API_BASE + "track/" + icao + (visit ? "?visit=" + visit : "");
         fetch(url)
@@ -184,14 +218,14 @@
                 if (!resp.ok) throw new Error("track fetch failed");
                 return resp.json();
             })
-            .then(renderTrack)
+            .then(function (geojson) { renderTrack(geojson, fit); })
             .catch(function (e) {
                 console.error("adsb-history-logger: failed to draw track", e);
             });
     }
 
-    function renderVisits(icao, visits) {
-        var el = ensurePanel();
+    // `fit`: zoom the map to a track when one of these visits is clicked.
+    function renderVisits(icao, visits, el, fit) {
         if (!el) return;
 
         if (!visits.length) {
@@ -217,7 +251,7 @@
         var visitEls = el.getElementsByClassName("adsb-history-visit");
         for (var j = 0; j < visitEls.length; j++) {
             visitEls[j].addEventListener("click", function () {
-                drawTrack(icao, this.getAttribute("data-visit"));
+                drawTrack(icao, this.getAttribute("data-visit"), fit);
             });
         }
         el.getElementsByClassName("adsb-history-clear")[0].addEventListener("click", clearTrack);
@@ -236,7 +270,7 @@
                 return resp.json();
             })
             .then(function (data) {
-                renderVisits(icao, data.visits);
+                renderVisits(icao, data.visits, el, false);
             })
             .catch(function (e) {
                 console.error("adsb-history-logger: failed to load history, will retry", e);
@@ -266,16 +300,131 @@
         }
     }
 
+    // History search: looks aircraft up in our own database rather than
+    // tar1090's live plane list, so it still works for aircraft tar1090 has
+    // already dropped (it forgets a plane ~15 minutes after last contact,
+    // and the selected-plane panel above can only follow what tar1090 has).
+    var searchEl = null;
+
+    function renderSearchResults(results) {
+        var list = searchEl.querySelector(".adsb-history-search-results");
+        var visitsEl = searchEl.querySelector(".adsb-history-search-visits");
+        visitsEl.innerHTML = "";
+
+        if (!results.length) {
+            list.innerHTML = '<div class="adsb-history-empty">no logged aircraft match</div>';
+            return;
+        }
+
+        var html = "";
+        for (var i = 0; i < results.length; i++) {
+            var r = results[i];
+            var seen = new Date(r.last_seen * 1000).toLocaleString();
+            html += '<div class="adsb-history-visit adsb-history-result" data-icao="' + escapeHtml(r.icao) + '"' +
+                ' title="' + escapeHtml(r.owner || r.operator || "") + '">' +
+                '<span class="adsb-history-visit-date">' + escapeHtml(describeAircraft(r)) + "</span>" +
+                '<span class="adsb-history-visit-meta">' + escapeHtml(seen) + "</span>" +
+                "</div>";
+        }
+        list.innerHTML = html;
+
+        var rows = list.getElementsByClassName("adsb-history-result");
+        for (var j = 0; j < rows.length; j++) {
+            rows[j].addEventListener("click", function () {
+                for (var k = 0; k < rows.length; k++) rows[k].classList.remove("adsb-history-active");
+                this.classList.add("adsb-history-active");
+                showSearchVisits(this.getAttribute("data-icao"));
+            });
+        }
+    }
+
+    function showSearchVisits(icao) {
+        var visitsEl = searchEl.querySelector(".adsb-history-search-visits");
+        visitsEl.innerHTML = '<div class="adsb-history-loading">loading history...</div>';
+        fetch(API_BASE + "history/" + icao)
+            .then(function (resp) {
+                if (!resp.ok) throw new Error("history fetch failed");
+                return resp.json();
+            })
+            .then(function (data) {
+                renderVisits(icao, data.visits, visitsEl, true);
+            })
+            .catch(function (e) {
+                console.error("adsb-history-logger: history search failed", e);
+                visitsEl.innerHTML = '<div class="adsb-history-empty">history unavailable, try again</div>';
+            });
+    }
+
+    function runSearch(query) {
+        var list = searchEl.querySelector(".adsb-history-search-results");
+        searchEl.querySelector(".adsb-history-search-visits").innerHTML = "";
+        query = query.trim();
+        if (query.length < 2) {
+            list.innerHTML = '<div class="adsb-history-empty">type at least 2 characters</div>';
+            return;
+        }
+        list.innerHTML = '<div class="adsb-history-loading">searching...</div>';
+        fetch(API_BASE + "lookup?q=" + encodeURIComponent(query))
+            .then(function (resp) {
+                if (!resp.ok) throw new Error("lookup failed");
+                return resp.json();
+            })
+            .then(function (data) { renderSearchResults(data.results); })
+            .catch(function (e) {
+                console.error("adsb-history-logger: lookup failed", e);
+                list.innerHTML = '<div class="adsb-history-empty">search unavailable, try again</div>';
+            });
+    }
+
+    function initSearch() {
+        searchEl = document.getElementById("adsb_history_search");
+        if (!searchEl) return;
+        searchEl.innerHTML =
+            '<form class="adsb-history-search-form">' +
+            '<div class="infoBlockTitleText">History search (all logged aircraft):</div>' +
+            '<input type="text" class="searchInput adsb-history-search-input" maxlength="64"' +
+            ' title="Hex ID, callsign, registration, type, operator, or owner -- includes aircraft no longer on the map">' +
+            '<button class="formButton" type="submit">Search</button>' +
+            '<button class="formButton adsb-history-search-clear" type="button">Clear</button>' +
+            "</form>" +
+            '<div class="adsb-history-search-results"></div>' +
+            '<div class="adsb-history-search-visits"></div>';
+
+        var form = searchEl.querySelector("form");
+        var input = searchEl.querySelector("input");
+        form.addEventListener("submit", function (ev) {
+            ev.preventDefault();
+            runSearch(input.value);
+        });
+        searchEl.querySelector(".adsb-history-search-clear").addEventListener("click", function () {
+            input.value = "";
+            searchEl.querySelector(".adsb-history-search-results").innerHTML = "";
+            searchEl.querySelector(".adsb-history-search-visits").innerHTML = "";
+            clearTrack();
+        });
+    }
+
     // Guarded rather than a bare call so this file can also be `require()`d
     // under Node for unit tests (see tests-js/) without needing a real
     // browser `window`.
     if (typeof window !== "undefined") {
         window.setInterval(poll, POLL_MS);
+        if (document.readyState === "loading") {
+            document.addEventListener("DOMContentLoaded", initSearch);
+        } else {
+            initSearch();
+        }
     }
 
     // Exposes the pure logic functions for tests-js/ under Node; a no-op
     // in the browser, where `module` doesn't exist.
     if (typeof module !== "undefined" && module.exports) {
-        module.exports = { altitudeColor: altitudeColor, bearing: bearing, arrowLineString: arrowLineString };
+        module.exports = {
+            altitudeColor: altitudeColor,
+            bearing: bearing,
+            arrowLineString: arrowLineString,
+            escapeHtml: escapeHtml,
+            describeAircraft: describeAircraft,
+        };
     }
 })();

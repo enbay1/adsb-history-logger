@@ -75,3 +75,18 @@ def test_unknown_path_is_404(server):
         assert False, "expected HTTPError"
     except urllib.error.HTTPError as e:
         assert e.code == 404
+
+
+def test_lookup_endpoint_finds_logged_aircraft(server):
+    status, body = get_json(f"{server}/lookup?q=A835")
+    assert status == 200
+    assert body["query"] == "A835"
+    assert [r["icao"] for r in body["results"]] == ["a835af"]
+
+
+def test_lookup_endpoint_rejects_short_query(server):
+    try:
+        urllib.request.urlopen(f"{server}/lookup?q=a", timeout=5)
+        assert False, "expected HTTPError"
+    except urllib.error.HTTPError as e:
+        assert e.code == 400

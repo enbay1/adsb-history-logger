@@ -43,6 +43,38 @@ def resolve_icaos(conn: sqlite3.Connection, query: str) -> list:
     return sorted(icaos)
 
 
+def lookup_aircraft(conn: sqlite3.Connection, query: str, limit: int = 25) -> list:
+    """Aircraft with locally logged positions matching a free-text query
+    (partial ICAO hex, callsign, registration, typecode, operator, model, or
+    owner), most recently seen first.
+
+    Unlike resolve_icaos, this only returns aircraft actually seen here --
+    it drives the tar1090 history search, where a match with no history is
+    just noise -- and it's one query driven off the small `aircraft` table,
+    so a broad query like "C" doesn't expand to half of aircraft_ref.
+    """
+    q = query.strip()
+    if not q:
+        return []
+    like = f"%{q}%"
+    # Registrations are stored with their dash (G-ABCD, C-FXYZ) but are often
+    # typed without one; US N-numbers have none either way.
+    reg_like = f"%{q.replace('-', '')}%"
+    cur = conn.execute(
+        """SELECT a.icao, a.last_seen, a.last_callsign, a.message_count,
+                  r.registration, r.typecode, r.model, r.operator, r.owner
+           FROM aircraft a LEFT JOIN aircraft_ref r ON r.icao24 = a.icao
+           WHERE a.icao LIKE ? OR a.last_callsign LIKE ?
+              OR REPLACE(r.registration, '-', '') LIKE ? OR r.typecode LIKE ?
+              OR r.operator LIKE ? OR r.model LIKE ? OR r.owner LIKE ?
+           ORDER BY a.last_seen DESC
+           LIMIT ?""",
+        (like, like, reg_like, like, like, like, like, limit),
+    )
+    cols = [d[0] for d in cur.description]
+    return [dict(zip(cols, row)) for row in cur.fetchall()]
+
+
 def group_visits(positions: list, gap_seconds: float = DEFAULT_VISIT_GAP) -> list:
     """Group a time-ordered list of position dicts into discrete visits,
     splitting wherever the gap between consecutive fixes exceeds gap_seconds."""

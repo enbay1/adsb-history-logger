@@ -47,3 +47,24 @@
 .adsb-history-clear:hover {
     opacity: 1;
 }
+
+#adsb_history_search {
+    margin-top: 8px;
+}
+
+.adsb-history-search-results,
+.adsb-history-search-visits {
+    margin-top: 4px;
+    max-height: 40vh;
+    overflow-y: auto;
+}
+
+.adsb-history-search-visits:not(:empty) {
+    padding-top: 4px;
+    border-top: 1px solid rgba(128, 128, 128, 0.35);
+}
+
+.adsb-history-result.adsb-history-active {
+    background: rgba(128, 128, 128, 0.25);
+    font-weight: bold;
+}

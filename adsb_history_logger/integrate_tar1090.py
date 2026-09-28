@@ -70,6 +70,20 @@ def patch_index_html(tar1090_dir: Path) -> None:
     panel_html = f'\n{BEGIN_MARKER}\n<div id="adsb_history_panel"></div>\n{END_MARKER}\n'
     html = html[:close_div] + panel_html + html[close_div:]
 
+    # The history search goes right under tar1090's own Search form in the
+    # sidebar. It's optional: without it, the selected-plane panel above
+    # still works, so a tar1090 layout change here shouldn't block install.
+    search_anchor = 'id="search_form"'
+    idx = html.find(search_anchor)
+    close_form = html.find("</form>", idx) if idx != -1 else -1
+    if close_form == -1:
+        print(f"warning: couldn't find tar1090's search form ({search_anchor}) in {index_path}; "
+              "skipping the history search box", file=sys.stderr)
+    else:
+        close_form += len("</form>")
+        search_html = f'\n{BEGIN_MARKER}\n<div id="adsb_history_search"></div>\n{END_MARKER}\n'
+        html = html[:close_form] + search_html + html[close_form:]
+
     script_tag = (f'{BEGIN_MARKER}\n<script src="history-overlay.js?v={__version__}"></script>\n'
                   f'{END_MARKER}\n')
     if "</body>" not in html:

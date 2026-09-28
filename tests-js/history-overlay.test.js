@@ -8,7 +8,7 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 
-const { altitudeColor, bearing, arrowLineString } = require("../adsb_history_logger/webui/history-overlay.js");
+const { altitudeColor, bearing, arrowLineString, escapeHtml, describeAircraft } = require("../adsb_history_logger/webui/history-overlay.js");
 
 function withColorByAlt(cfg, fn) {
     const prev = global.ColorByAlt;
@@ -149,4 +149,22 @@ test("arrowLineString: rotates a north-pointing tip toward the given bearing", (
     } finally {
         delete global.ol;
     }
+});
+
+test("escapeHtml: escapes markup from database strings", () => {
+    assert.equal(escapeHtml('<b>"Acme" & Sons\'</b>'), "&lt;b&gt;&quot;Acme&quot; &amp; Sons&#39;&lt;/b&gt;");
+});
+
+test("escapeHtml: null and undefined become empty strings", () => {
+    assert.equal(escapeHtml(null), "");
+    assert.equal(escapeHtml(undefined), "");
+});
+
+test("describeAircraft: registration, type and uppercased hex", () => {
+    assert.equal(describeAircraft({ icao: "a97659", registration: "N709DS", typecode: "GLF6" }), "N709DS · GLF6 · A97659");
+});
+
+test("describeAircraft: falls back to callsign, then hex alone", () => {
+    assert.equal(describeAircraft({ icao: "a97659", last_callsign: "N709DS" }), "N709DS · A97659");
+    assert.equal(describeAircraft({ icao: "a97659" }), "A97659");
 });

@@ -1,3 +1,18 @@
+adsb-history-logger (0.3.6-1) unstable; urgency=medium
+
+  * tar1090 integration: new "History search" box under tar1090's own
+    Search form. It looks aircraft up in the local database (hex,
+    callsign, registration, type, operator or owner), so it finds
+    aircraft tar1090 has already dropped -- tar1090 forgets a plane about
+    15 minutes after last contact, and the selected-plane History panel
+    can only follow planes tar1090 still has. Clicking a visit draws the
+    track and zooms the map to it.
+  * adsb-history-web: new /lookup?q= endpoint backing the search.
+  * Re-run adsb-history-integrate-tar1090 after upgrading to get the
+    search box.
+
+ -- enbay1 <enbay1@gmail.com>  Mon, 28 Sep 2026 18:30:00 +0000
+
 adsb-history-logger (0.3.5-1) unstable; urgency=medium
 
   * `adsb-history-query search` now accepts --owner, and the free-text

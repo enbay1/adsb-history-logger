@@ -119,8 +119,14 @@ can add a "History" panel to its aircraft info sidebar: select any aircraft
 on the map, see its past visits, and click one to draw that track as an
 overlay on the live map.
 
+tar1090 forgets an aircraft about 15 minutes after it last hears from it,
+after which it can't be selected. For those, use the "History search" box
+added under tar1090's own Search form in the sidebar: it searches every
+aircraft in the local database by hex, callsign, registration, type,
+operator or owner, and clicking a visit draws its track and zooms to it.
+
 This works as a thin add-on, not a fork: `adsb-history-web` serves a small
-read-only JSON API (`/history/<icao>`, `/track/<icao>`), and
+read-only JSON API (`/history/<icao>`, `/track/<icao>`, `/lookup?q=`), and
 `history-overlay.js`/`.css` (original code, bundled with this package) are
 copied alongside tar1090's own files and referenced with three small,
 idempotent insertions into its `index.html` -- tar1090's own GPLv2 code is
@@ -159,7 +165,7 @@ python3 -m venv .venv && .venv/bin/pip install -e .
 .venv/bin/python -m pytest
 
 # browser-side logic (adsb_history_logger/webui/history-overlay.js)
-node --test tests-js/
+node --test tests-js/*.test.js
 ```
 
 ## Building the .deb

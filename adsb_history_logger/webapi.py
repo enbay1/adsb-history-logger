@@ -14,7 +14,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlparse
 
 from adsb_history_logger.db import open_db
-from adsb_history_logger.query import track_geojson, visits_summary
+from adsb_history_logger.query import lookup_aircraft, track_geojson, visits_summary
 
 HEX_RE = re.compile(r"^[0-9a-fA-F]{6}$")
 
@@ -66,6 +66,18 @@ def make_handler(db_path: str):
                     self._json({"error": "visit out of range"}, 400)
                     return
                 self._json(geojson)
+                return
+
+            if parts == ["lookup"]:
+                q = qs.get("q", [""])[0].strip()
+                if len(q) < 2:
+                    self._json({"error": "query must be at least 2 characters"}, 400)
+                    return
+                conn = open_db(db_path)
+                try:
+                    self._json({"query": q, "results": lookup_aircraft(conn, q)})
+                finally:
+                    conn.close()
                 return
 
             self._json({"error": "not found"}, 404)
